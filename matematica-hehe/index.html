@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz Produtos Notáveis</title>
+
+<style>
+body {
+  font-family: Arial;
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  margin: 0;
+}
+
+.container {
+  max-width: 500px;
+  width: 95%;
+  margin: 20px auto;
+  background: white;
+  padding: 20px;
+  border-radius: 15px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.3);
+}
+
+.answers { text-align: left; }
+
+button {
+  width: 100%;
+  padding: 12px;
+  margin: 5px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+}
+
+.correct { background: #2ecc71; color: white; }
+.wrong { background: #e74c3c; color: white; }
+
+.hide { display: none; }
+
+#timer { text-align:center; font-weight:bold; }
+
+canvas {
+  position: fixed;
+  top:0;
+  left:0;
+  pointer-events:none;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="confetti"></canvas>
+
+<div class="container" id="start">
+<h2>Produtos Notáveis</h2>
+
+<p><b>Tempo:</b></p>
+<button onclick="setTime(600)">10 min</button>
+<button onclick="setTime(900)">15 min</button>
+<button onclick="setTime(1200)">20 min</button>
+<button onclick="setTime(0)">Sem tempo</button>
+
+<p id="tempoEscolhido">Sem tempo</p>
+
+<p><b>Dificuldade:</b></p>
+<button onclick="startGame('facil')">Fácil</button>
+<button onclick="startGame('medio')">Médio</button>
+<button onclick="startGame('dificil')">Difícil</button>
+</div>
+
+<div class="container hide" id="quiz">
+<p id="timer"></p>
+<h3 id="question"></h3>
+<div id="answers" class="answers"></div>
+</div>
+
+<div class="container hide" id="end">
+<h2>Resultado</h2>
+<p id="score"></p>
+
+<input id="name" placeholder="Seu nome" style="width:100%;padding:10px;">
+<br><br>
+<button onclick="saveScore()">Salvar no ranking</button>
+
+<h3>Ranking</h3>
+<div id="ranking"></div>
+
+<br>
+<button onclick="goHome()">Jogar novamente</button>
+</div>
+
+<script>
+
+// ===== CONFIG =====
+let tempoBase=0, tempoAtual=0, intervalo;
+let current=0, score=0, quizData=[], answered=false;
+
+// ===== QUESTÕES =====
+let questions = {
+facil: [
+{q:"(a+b)² =", correct:"a²+2ab+b²", wrong:["a²+b²","2a²","ab²","a+b"]},
+{q:"(a-b)² =", correct:"a²-2ab+b²", wrong:["a²-b²","a²+b²","ab","a-b"]},
+{q:"(x+y)² =", correct:"x²+2xy+y²", wrong:["x²+y²","2xy","x²","y²"]},
+{q:"(x-y)² =", correct:"x²-2xy+y²", wrong:["x²-y²","x²+y²","2xy","x-y"]},
+{q:"(a+b)(a-b) =", correct:"a²-b²", wrong:["a²+b²","ab","2a","2b"]},
+{q:"(2+3)² =", correct:"25", wrong:["9","13","5","6"]},
+{q:"(5-2)² =", correct:"9", wrong:["25","3","7","4"]},
+{q:"(a+1)² =", correct:"a²+2a+1", wrong:["a²+1","2a","a²","a"]},
+{q:"(b-1)² =", correct:"b²-2b+1", wrong:["b²-1","b²+1","b","1"]},
+{q:"(x+1)(x-1) =", correct:"x²-1", wrong:["x²+1","x","1","0"]},
+{q:"(3+4)² =", correct:"49", wrong:["7","25","16","36"]}
+],
+
+medio: [
+{q:"(2x+3)² =", correct:"4x²+12x+9", wrong:["2x²+9","4x²+9","12x","6x"]},
+{q:"(x-5)² =", correct:"x²-10x+25", wrong:["x²-25","x²+25","10x","5x"]},
+{q:"(3a+b)² =", correct:"9a²+6ab+b²", wrong:["3a²+b²","9a²+b²","6ab","3ab"]},
+{q:"(2x-1)² =", correct:"4x²-4x+1", wrong:["4x²+1","x²-1","2x","1"]},
+{q:"(x+2)(x-2) =", correct:"x²-4", wrong:["x²+4","2x","4x","x"]},
+{q:"(3x+1)(3x-1) =", correct:"9x²-1", wrong:["3x²-1","9x²+1","3x","1"]},
+{q:"(a+4)² =", correct:"a²+8a+16", wrong:["a²+16","4a","a²+4a","16"]},
+{q:"(2a-3)² =", correct:"4a²-12a+9", wrong:["4a²+9","a²-9","2a","3"]},
+{q:"(x+7)² =", correct:"x²+14x+49", wrong:["x²+49","7x","x²+7x","49"]},
+{q:"(5x-2)² =", correct:"25x²-20x+4", wrong:["25x²+4","5x","x²","4"]}
+],
+
+dificil: [
+{q:"(x+3y)² =", correct:"x²+6xy+9y²", wrong:["x²+9y²","6xy","x²","y²"]},
+{q:"(2x+y)² =", correct:"4x²+4xy+y²", wrong:["2x²+y²","4x²+y²","4xy","2xy"]},
+{q:"(3x-2y)² =", correct:"9x²-12xy+4y²", wrong:["9x²+4y²","x²-y²","12xy","6xy"]},
+{q:"(a+2b)(a-2b) =", correct:"a²-4b²", wrong:["a²+4b²","2ab","4ab","a²"]},
+{q:"(4x+5y)² =", correct:"16x²+40xy+25y²", wrong:["16x²+25y²","40xy","20xy","4x²"]},
+{q:"(x-4y)² =", correct:"x²-8xy+16y²", wrong:["x²+16y²","x²-16y²","8xy","4xy"]}
+]
+};
+
+// ===== FUNÇÕES =====
+function shuffle(a){ return a.sort(()=>Math.random()-0.5); }
+
+function setTime(t){
+  tempoBase=t;
+  document.getElementById("tempoEscolhido").innerText=
+    t===0?"Sem tempo":(t/60)+" minutos";
+}
+
+function startGame(level){
+  document.getElementById("start").classList.add("hide");
+  document.getElementById("quiz").classList.remove("hide");
+
+  quizData = shuffle([...questions[level]]).slice(0,10);
+  current=0; score=0;
+
+  tempoAtual=tempoBase;
+
+  if(tempoAtual>0){
+    intervalo=setInterval(()=>{
+      tempoAtual--;
+      document.getElementById("timer").innerText="Tempo: "+tempoAtual+"s";
+      if(tempoAtual<=0) endGame(true);
+    },1000);
+  } else {
+    document.getElementById("timer").innerText="Sem tempo";
+  }
+
+  showQuestion();
+}
+
+function showQuestion(){
+  answered=false;
+  let q=quizData[current];
+  document.getElementById("question").innerText=q.q;
+
+  let options=shuffle([q.correct,...q.wrong]);
+  let html="";
+  options.forEach(opt=>{
+    html+=`<button onclick="checkAnswer('${opt}', this)">${opt}</button>`;
+  });
+
+  document.getElementById("answers").innerHTML=html;
+}
+
+function checkAnswer(sel,btn){
+  if(answered) return;
+  answered=true;
+
+  let q=quizData[current];
+
+  if(sel===q.correct){
+    score++;
+    btn.classList.add("correct");
+    smallConfetti(btn);
+  } else {
+    btn.classList.add("wrong");
+  }
+
+  setTimeout(()=>{
+    current++;
+    if(current<quizData.length){
+      showQuestion();
+    } else {
+      endGame();
+    }
+  },800);
+}
+
+function endGame(timeUp=false){
+  clearInterval(intervalo);
+
+  document.getElementById("quiz").classList.add("hide");
+  document.getElementById("end").classList.remove("hide");
+
+  let answeredCount = current;
+  let wrong = answeredCount - score;
+  let notAnswered = 10 - answeredCount;
+
+  let texto = `
+    Acertos: ${score}<br>
+    Erros: ${wrong}<br>
+    Não respondidas: ${notAnswered}
+  `;
+
+  if(timeUp){
+    texto += "<br><b>⏱️ Tempo esgotado!</b>";
+  }
+
+  document.getElementById("score").innerHTML = texto;
+
+  if(score===10){
+    startConfetti();
+  }
+
+  loadRanking();
+}
+
+function goHome(){
+  clearInterval(intervalo);
+  document.getElementById("end").classList.add("hide");
+  document.getElementById("start").classList.remove("hide");
+}
+
+function saveScore(){
+  let nome=document.getElementById("name").value||"Anônimo";
+  let ranking=JSON.parse(localStorage.getItem("ranking")||"[]");
+
+  ranking.push({nome,score});
+  ranking.sort((a,b)=>b.score-a.score);
+  ranking=ranking.slice(0,5);
+
+  localStorage.setItem("ranking",JSON.stringify(ranking));
+  loadRanking();
+}
+
+function loadRanking(){
+  let ranking=JSON.parse(localStorage.getItem("ranking")||"[]");
+  let html="";
+  ranking.forEach(r=> html+=`<p>${r.nome} - ${r.score}</p>`);
+  document.getElementById("ranking").innerHTML=html;
+}
+
+// ===== CONFETE BOTÃO =====
+function smallConfetti(button){
+  let rect = button.getBoundingClientRect();
+
+  for(let i=0;i<20;i++){
+    let div=document.createElement("div");
+
+    div.style.position="fixed";
+    div.style.left=rect.left+rect.width/2+"px";
+    div.style.top=rect.top+rect.height/2+"px";
+    div.style.width="6px";
+    div.style.height="6px";
+    div.style.background="hsl("+Math.random()*360+",100%,50%)";
+
+    document.body.appendChild(div);
+
+    let angle=Math.random()*2*Math.PI;
+    let dist=Math.random()*80;
+
+    div.animate([
+      {transform:"translate(0,0)",opacity:1},
+      {transform:`translate(${Math.cos(angle)*dist}px,${Math.sin(angle)*dist}px)`,opacity:0}
+    ],{duration:600});
+
+    setTimeout(()=>div.remove(),600);
+  }
+}
+
+// ===== CONFETE FINAL =====
+let canvas=document.getElementById("confetti");
+let ctx=canvas.getContext("2d");
+canvas.width=window.innerWidth;
+canvas.height=window.innerHeight;
+
+let confs=[];
+function startConfetti(){
+  for(let i=0;i<120;i++){
+    confs.push({
+      x:Math.random()*canvas.width,
+      y:Math.random()*canvas.height,
+      r:Math.random()*6+2,
+      d:Math.random()*5
+    });
+  }
+  drawConfetti();
+}
+
+function drawConfetti(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  confs.forEach(c=>{
+    ctx.beginPath();
+    ctx.arc(c.x,c.y,c.r,0,Math.PI*2);
+    ctx.fillStyle="hsl("+Math.random()*360+",100%,50%)";
+    ctx.fill();
+    c.y+=c.d;
+    if(c.y>canvas.height) c.y=0;
+  });
+  requestAnimationFrame(drawConfetti);
+}
+
+</script>
+
+</body>
+</html>
